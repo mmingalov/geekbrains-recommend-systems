@@ -13,18 +13,25 @@ def prefilter_items(data, take_n_popular=5000):
     # your_code
     # Ещё один фильтр по популярности. 
     # Если товар покупает более 3/4 пользователей, то его рекомендовать не стоит, так как его и так купят.
-    popular = data.groupby('item_id')['user_id'].nunique().reset_index() / data['user_id'].nunique()
+    popular = data.groupby('item_id')['user_id'].nunique().reset_index()
+    users_count = data['user_id'].nunique()
+    popular['user_id'] = popular['user_id'].apply(lambda x: x / users_count)
     popular.rename(columns={'user_id': 'share_unique_users'}, inplace=True)
+    popular.sort_values(by='share_unique_users', ascending=False, inplace=True)
 
     top_popular = popular[popular['share_unique_users'] > 0.75].item_id.tolist()
     data = data[~data['item_id'].isin(top_popular)]
     
     # 4. Выбор топ-N самых популярных товаров (N = take_n_popular)
     # your_code
-    popularity = data.groupby('item_id')['quantity'].sum().reset_index()
-    popularity.rename(columns={'quantity': 'n_sold'}, inplace=True)
-
-    top_n = popularity.sort_values('n_sold', ascending=False).head(take_n_popular).item_id.tolist()
-    data = data[data.item_id.isin(top_n)]
+    popularity_sales = data.groupby('item_id')['sales_value'].sum().reset_index()
+    popularity_sales.sort_values('sales_value', ascending=False, inplace=True)
+    n_popular = popularity_sales['item_id'][:take_n_popular].tolist()
+    
+    # Заведем фиктивный item_id (если юзер не покупал товары из топ-5000, то он "купил" такой товар)
+    data.loc[~data['item_id'].isin(n_popular), 'item_id'] = 9999999
+    n_popular.append(9999999)
+    
+    data = data[data['item_id'].isin(n_popular)]
     
     return data
